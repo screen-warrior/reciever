@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  macOS LaunchAgent for the receiver (runs in the background, at login).
+
+  This is a TEMPLATE: replace the two __ABSOLUTE_PATH__ placeholders and the
+  token, then install it (see MAC_SETUP.md):
+
+    cp deploy/com.keyboardproject.receiver.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.keyboardproject.receiver.plist
+
+  It must be a LaunchAgent (in ~/Library/LaunchAgents), NOT a LaunchDaemon --
+  keystroke injection requires running inside your logged-in GUI session.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.keyboardproject.receiver</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__ABSOLUTE_PATH__/keyboard_project/.venv/bin/python</string>
+        <string>-m</string>
+        <string>receiver.main</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__ABSOLUTE_PATH__/keyboard_project</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>KB_BIND_HOST</key>
+        <string>0.0.0.0</string>
+        <key>KB_TOKEN</key>
+        <string>change-me-to-a-strong-shared-token</string>
+        <key>KB_HOTKEY</key>
+        <string>f9</string>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/keyboard_receiver.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/keyboard_receiver.err</string>
+</dict>
+</plist>

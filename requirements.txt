@@ -1,0 +1,13 @@
+# Networking (receiver listener + sender client)
+fastapi==0.115.0
+uvicorn==0.30.6
+requests==2.32.3
+
+# Global hotkey (Windows). On macOS we'll swap to pynput later.
+keyboard==0.13.5
+
+# Sender GUI
+PyQt6==6.7.1
+
+# Packaging into background executables
+pyinstaller==6.10.0

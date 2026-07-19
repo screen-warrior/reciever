@@ -26,7 +26,10 @@ class TypingController:
         return t is not None and t.is_alive()
 
     def start(
-        self, text: Optional[str] = None, start_delay: float = 0.0
+        self,
+        text: Optional[str] = None,
+        start_delay: float = 0.0,
+        ide_mode: bool = False,
     ) -> Tuple[bool, str]:
         """Begin typing on a background thread.
 
@@ -44,11 +47,12 @@ class TypingController:
             self._thread = threading.Thread(
                 target=self._engine.type_text,
                 args=(text,),
-                kwargs={"start_delay": start_delay},
+                kwargs={"start_delay": start_delay, "ide_mode": ide_mode},
                 daemon=True,
             )
             self._thread.start()
-            return True, f"typing {len(text)} chars"
+            mode = " (IDE mode)" if ide_mode else ""
+            return True, f"typing {len(text)} chars{mode}"
 
     def abort(self) -> bool:
         if self.is_typing():

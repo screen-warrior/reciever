@@ -16,7 +16,12 @@ from __future__ import annotations
 
 from pynput import keyboard as pk
 
-from shared.config import ABORT_HOTKEY, LOCAL_HOTKEY_START_DELAY, TYPE_HOTKEY
+from shared.config import (
+    ABORT_HOTKEY,
+    IDE_MODE_DEFAULT,
+    LOCAL_HOTKEY_START_DELAY,
+    TYPE_HOTKEY,
+)
 from receiver.controller import CONTROLLER
 
 
@@ -67,7 +72,9 @@ class MacHotkeyController:
         self._listener: pk.GlobalHotKeys | None = None
 
     def _on_type(self) -> None:
-        ok, msg = CONTROLLER.start(start_delay=LOCAL_HOTKEY_START_DELAY)
+        ok, msg = CONTROLLER.start(
+            start_delay=LOCAL_HOTKEY_START_DELAY, ide_mode=IDE_MODE_DEFAULT
+        )
         print(f"[hotkey] {msg}")
 
     def _on_abort(self) -> None:

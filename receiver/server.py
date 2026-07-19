@@ -13,7 +13,7 @@ import time
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
-from shared.config import REMOTE_START_DELAY, SHARED_TOKEN
+from shared.config import IDE_MODE_DEFAULT, REMOTE_START_DELAY, SHARED_TOKEN
 from receiver.clipboard import CLIP_HISTORY
 from receiver.controller import CONTROLLER
 from receiver.state import STATE
@@ -31,6 +31,8 @@ class TypeRequest(BaseModel):
     start_delay: float | None = None
     # Optional: send + type in one call by including text here.
     text: str | None = None
+    # Optional: type into a smart auto-indenting editor (e.g. CodeSignal).
+    ide_mode: bool | None = None
 
 
 def _check_token(token: str | None) -> None:
@@ -90,10 +92,11 @@ def type_now(
         STATE.set_text(req.text, time.time())
 
     delay = req.start_delay if req.start_delay is not None else REMOTE_START_DELAY
-    ok, message = CONTROLLER.start(start_delay=delay)
+    ide_mode = req.ide_mode if req.ide_mode is not None else IDE_MODE_DEFAULT
+    ok, message = CONTROLLER.start(start_delay=delay, ide_mode=ide_mode)
     if not ok:
         raise HTTPException(status_code=409, detail=message)
-    return {"status": "typing", "detail": message, "start_delay": delay}
+    return {"status": "typing", "detail": message, "start_delay": delay, "ide_mode": ide_mode}
 
 
 @app.post("/abort")

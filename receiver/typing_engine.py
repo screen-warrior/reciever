@@ -15,12 +15,13 @@ implements ``type_char``, ``backspace``, and ``tap``.
 
 from __future__ import annotations
 
+import math
 import random
 import threading
 import time
 from typing import Optional
 
-from shared.config import DEFAULT_PROFILE, TypingProfile
+from shared.config import DEFAULT_PROFILE, IDE_ESC_BEFORE_ENTER, TypingProfile
 from receiver.injector import get_injector
 
 
@@ -37,6 +38,20 @@ _QWERTY_NEIGHBORS = {
 }
 
 _PUNCTUATION = set(".,;:!?")
+
+
+def leading_ws_to_spaces(line: str, tab_width: int) -> str:
+    """Expand a line's leading whitespace to literal spaces (tabs -> spaces).
+
+    Used by IDE mode so indentation is typed as exact spaces after resetting the
+    line to column 0.
+    """
+    i = 0
+    cols = 0
+    while i < len(line) and line[i] in (" ", "\t"):
+        cols += tab_width if line[i] == "\t" else 1
+        i += 1
+    return " " * cols + line[i:]
 
 
 def convert_indentation_to_tabs(text: str, tab_width: int) -> str:
@@ -75,6 +90,10 @@ class TypingEngine:
         self.injector = injector or get_injector()
         self.rng = rng or random.Random()
         self._abort = threading.Event()
+        # Oscillating-speed state: a phase that advances per character so the
+        # effective WPM drifts smoothly between wpm_min and wpm_max.
+        self._phase = self.rng.uniform(0.0, 2.0 * math.pi)
+        self._current_base = self.profile.delay_for_wpm(self.profile.wpm_mid())
 
     # -- control ---------------------------------------------------------
     def abort(self) -> None:
@@ -88,8 +107,21 @@ class TypingEngine:
         self._abort.wait(seconds)
 
     # -- timing helpers --------------------------------------------------
+    def _advance_speed(self) -> None:
+        """Advance the drifting speed once per character.
+
+        The effective WPM follows a sine wave between wpm_min and wpm_max, with
+        a little random noise so the ebb and flow isn't perfectly regular.
+        """
+        p = self.profile
+        self._phase += p.wpm_drift_rate + self.rng.uniform(
+            -p.wpm_drift_noise, p.wpm_drift_noise
+        )
+        wpm = p.wpm_mid() + p.wpm_amplitude() * math.sin(self._phase)
+        self._current_base = p.delay_for_wpm(wpm)
+
     def _key_delay(self) -> float:
-        base = self.profile.base_delay()
+        base = self._current_base
         # Log-normal-ish spread keeps delays positive and occasionally long.
         factor = self.rng.lognormvariate(0.0, self.profile.delay_jitter)
         return base * factor
@@ -143,30 +175,84 @@ class TypingEngine:
             self.injector.backspace(self._dwell())
             self._sleep(self._key_delay() * 0.6)
 
-    # -- main ------------------------------------------------------------
-    def type_text(self, text: str, start_delay: float = 0.0) -> bool:
-        """Type the full text. Returns True if completed, False if aborted."""
-        self._abort.clear()
+    # -- per-character ---------------------------------------------------
+    def _type_one(self, ch: str) -> bool:
+        """Type a single character with drift, optional typo, and delay.
 
-        if self.profile.convert_indent_to_tabs:
-            text = convert_indentation_to_tabs(text, self.profile.tab_width)
+        Returns False if aborted during the character.
+        """
+        self._advance_speed()
+        if self._abort.is_set():
+            return False
 
-        if start_delay > 0:
-            self._sleep(start_delay)
-
-        for ch in text:
+        # Chance of a fat-finger typo before the correct character.
+        if ch.lower() in _QWERTY_NEIGHBORS and self.rng.random() < self.profile.typo_prob:
+            self._do_typo(ch)
             if self._abort.is_set():
                 return False
 
-            # Chance of a fat-finger typo before the correct character.
-            if ch.lower() in _QWERTY_NEIGHBORS and self.rng.random() < self.profile.typo_prob:
-                self._do_typo(ch)
-                if self._abort.is_set():
+        self.injector.type_char(ch, self._dwell())
+        self._sleep(self._key_delay() + self._maybe_extra_pause(ch))
+        return not self._abort.is_set()
+
+    # -- main ------------------------------------------------------------
+    def type_text(
+        self,
+        text: str,
+        start_delay: float = 0.0,
+        ide_mode: bool = False,
+        esc_before_enter: Optional[bool] = None,
+    ) -> bool:
+        """Type the full text. Returns True if completed, False if aborted.
+
+        In ``ide_mode`` (for smart editors like CodeSignal that auto-indent),
+        each new line is reset to column 0 and the exact indentation is typed as
+        literal spaces, so the editor's auto-indent can't stack up.
+        """
+        self._abort.clear()
+        if start_delay > 0:
+            self._sleep(start_delay)
+
+        if ide_mode:
+            return self._type_ide(text, esc_before_enter)
+        return self._type_plain(text)
+
+    def _type_plain(self, text: str) -> bool:
+        if self.profile.convert_indent_to_tabs:
+            text = convert_indentation_to_tabs(text, self.profile.tab_width)
+        for ch in text:
+            if not self._type_one(ch):
+                return False
+        return not self._abort.is_set()
+
+    def _type_ide(self, text: str, esc_before_enter: Optional[bool]) -> bool:
+        """IDE-aware typing: control indentation ourselves, defeat auto-indent."""
+        if esc_before_enter is None:
+            esc_before_enter = IDE_ESC_BEFORE_ENTER
+
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = text.split("\n")
+
+        for i, line in enumerate(lines):
+            if self._abort.is_set():
+                return False
+
+            if i > 0:
+                # Move to a clean next line: dismiss any autocomplete popup so
+                # Enter makes a newline, press Enter, then wipe the editor's
+                # auto-indent back to column 0.
+                if esc_before_enter:
+                    self.injector.press_escape()
+                    self._sleep(0.05)
+                self.injector.type_char("\n", self._dwell())
+                self._sleep(self.profile.pause_after_newline)
+                self.injector.delete_to_line_start()
+                self._sleep(0.05)
+
+            # Type this line's exact indentation as literal spaces + content.
+            line = leading_ws_to_spaces(line, self.profile.tab_width)
+            for ch in line:
+                if not self._type_one(ch):
                     return False
-
-            self.injector.type_char(ch, self._dwell())
-
-            delay = self._key_delay() + self._maybe_extra_pause(ch)
-            self._sleep(delay)
 
         return not self._abort.is_set()

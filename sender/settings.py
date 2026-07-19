@@ -18,7 +18,12 @@ SETTINGS_PATH = Path.home() / ".keyboard_sender.json"
 
 
 def defaults() -> Dict[str, Any]:
-    return {"host": RECEIVER_HOST, "port": RECEIVER_PORT, "token": SHARED_TOKEN}
+    return {
+        "host": RECEIVER_HOST,
+        "port": RECEIVER_PORT,
+        "token": SHARED_TOKEN,
+        "ide_mode": False,
+    }
 
 
 def load() -> Dict[str, Any]:
@@ -27,18 +32,33 @@ def load() -> Dict[str, Any]:
         if SETTINGS_PATH.exists():
             saved = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
             if isinstance(saved, dict):
-                data.update({k: saved[k] for k in ("host", "port", "token") if k in saved})
+                data.update(
+                    {
+                        k: saved[k]
+                        for k in ("host", "port", "token", "ide_mode")
+                        if k in saved
+                    }
+                )
     except Exception:
         # Corrupt/unreadable settings should never block startup.
         pass
     data["port"] = int(data["port"])
+    data["ide_mode"] = bool(data["ide_mode"])
     return data
 
 
-def save(host: str, port: int, token: str) -> None:
+def save(host: str, port: int, token: str, ide_mode: bool = False) -> None:
     try:
         SETTINGS_PATH.write_text(
-            json.dumps({"host": host, "port": int(port), "token": token}, indent=2),
+            json.dumps(
+                {
+                    "host": host,
+                    "port": int(port),
+                    "token": token,
+                    "ide_mode": bool(ide_mode),
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
     except Exception:

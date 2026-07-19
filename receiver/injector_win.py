@@ -34,6 +34,8 @@ VK_RETURN = 0x0D
 VK_SHIFT = 0x10
 VK_CONTROL = 0x11
 VK_MENU = 0x12  # Alt
+VK_ESCAPE = 0x1B
+VK_HOME = 0x24
 
 ULONG_PTR = ctypes.POINTER(ctypes.c_ulong)
 
@@ -178,4 +180,19 @@ class Win32Injector:
             self.key_up(VK_SHIFT)
 
     def backspace(self, dwell: float = 0.0) -> None:
+        self.tap(VK_BACK, dwell)
+
+    def press_escape(self, dwell: float = 0.0) -> None:
+        self.tap(VK_ESCAPE, dwell)
+
+    def delete_to_line_start(self, dwell: float = 0.0) -> None:
+        """Select from the cursor to the start of the line and delete it.
+
+        Shift+Home selects to line start; Backspace clears the selection. Used
+        by IDE mode to wipe an editor's auto-indent before typing exact
+        indentation.
+        """
+        self.key_down(VK_SHIFT)
+        self.tap(VK_HOME, dwell)
+        self.key_up(VK_SHIFT)
         self.tap(VK_BACK, dwell)

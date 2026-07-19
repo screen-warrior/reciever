@@ -26,6 +26,7 @@ import Quartz  # provided by pyobjc-framework-Quartz
 kVK_Return = 0x24
 kVK_Tab = 0x30
 kVK_Delete = 0x33  # Backspace
+kVK_Escape = 0x35
 
 
 class MacInjector:
@@ -62,3 +63,22 @@ class MacInjector:
 
     def backspace(self, dwell: float = 0.0) -> None:
         self._tap_keycode(kVK_Delete, dwell)
+
+    def press_escape(self, dwell: float = 0.0) -> None:
+        self._tap_keycode(kVK_Escape, dwell)
+
+    def delete_to_line_start(self, dwell: float = 0.0) -> None:
+        """Delete from the cursor to the start of the line (Cmd+Delete).
+
+        macOS/browser editors map Cmd+Backspace to "delete everything left on
+        the line". Used by IDE mode to wipe an editor's auto-indent before
+        typing exact indentation.
+        """
+        down = Quartz.CGEventCreateKeyboardEvent(None, kVK_Delete, True)
+        Quartz.CGEventSetFlags(down, Quartz.kCGEventFlagMaskCommand)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, down)
+        if dwell > 0:
+            time.sleep(dwell)
+        up = Quartz.CGEventCreateKeyboardEvent(None, kVK_Delete, False)
+        Quartz.CGEventSetFlags(up, Quartz.kCGEventFlagMaskCommand)
+        Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)

@@ -74,8 +74,18 @@ class TypingProfile:
     tune them by trial-and-error while watching live typing.
     """
 
-    # Target typing speed. Real inter-key delays are drawn around this.
-    words_per_minute: float = 55.0
+    # Typing speed. Instead of a fixed rate, the effective WPM smoothly drifts
+    # up and down between these bounds over time, so the pace ebbs and flows
+    # like a real typist rather than being metronome-steady.
+    wpm_min: float = 50.0
+    wpm_max: float = 65.0
+    # How fast the speed oscillates: phase advance per character (radians).
+    # Smaller = slower, longer waves; larger = quicker speed changes.
+    wpm_drift_rate: float = 0.05
+    # Small random nudge added to the drift each char so waves aren't perfectly
+    # regular.
+    wpm_drift_noise: float = 0.015
+
     # Assumed average characters per word (incl. following space) for WPM math.
     chars_per_word: float = 5.0
 
@@ -115,9 +125,30 @@ class TypingProfile:
     # Sometimes type a couple extra wrong chars before catching it.
     typo_burst_max: int = 2
 
-    def base_delay(self) -> float:
-        cps = (self.words_per_minute * self.chars_per_word) / 60.0
+    def delay_for_wpm(self, wpm: float) -> float:
+        """Base inter-key delay (seconds) for a given words-per-minute."""
+        cps = (wpm * self.chars_per_word) / 60.0
         return 1.0 / max(cps, 0.1)
+
+    def wpm_mid(self) -> float:
+        return (self.wpm_min + self.wpm_max) / 2.0
+
+    def wpm_amplitude(self) -> float:
+        return (self.wpm_max - self.wpm_min) / 2.0
 
 
 DEFAULT_PROFILE = TypingProfile()
+
+
+# --------------------------------------------------------------------------
+# IDE mode (for smart editors like CodeSignal that auto-indent)
+# --------------------------------------------------------------------------
+# When typing into an editor that auto-indents, our own indentation would stack
+# on top of the editor's. IDE mode resets each new line to column 0 and types
+# the exact indentation itself. Default for the LOCAL hotkey; the sender can
+# override per request via its "IDE mode" checkbox.
+IDE_MODE_DEFAULT = os.environ.get("KB_IDE_MODE", "0") not in ("0", "false", "False", "no")
+
+# In IDE mode, press Esc right before each Enter to dismiss any autocomplete
+# popup so Enter always inserts a newline instead of accepting a suggestion.
+IDE_ESC_BEFORE_ENTER = os.environ.get("KB_IDE_ESC", "1") not in ("0", "false", "False", "no")

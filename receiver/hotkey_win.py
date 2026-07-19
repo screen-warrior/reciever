@@ -8,13 +8,20 @@ from __future__ import annotations
 
 import keyboard
 
-from shared.config import ABORT_HOTKEY, LOCAL_HOTKEY_START_DELAY, TYPE_HOTKEY
+from shared.config import (
+    ABORT_HOTKEY,
+    IDE_MODE_DEFAULT,
+    LOCAL_HOTKEY_START_DELAY,
+    TYPE_HOTKEY,
+)
 from receiver.controller import CONTROLLER
 
 
 class WinHotkeyController:
     def on_type_hotkey(self) -> None:
-        ok, msg = CONTROLLER.start(start_delay=LOCAL_HOTKEY_START_DELAY)
+        ok, msg = CONTROLLER.start(
+            start_delay=LOCAL_HOTKEY_START_DELAY, ide_mode=IDE_MODE_DEFAULT
+        )
         print(f"[hotkey] {msg}")
 
     def on_abort_hotkey(self) -> None:

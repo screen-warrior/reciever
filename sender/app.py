@@ -20,6 +20,7 @@ from PyQt6.QtCore import QObject, QRunnable, Qt, QThreadPool, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -126,6 +127,9 @@ QLineEdit {
     selection-background-color: #585b70;
 }
 QLineEdit:focus { border: 1px solid #89b4fa; }
+QCheckBox { color: #cdd6f4; font-size: 12px; }
+QCheckBox::indicator { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #45475a; background: #11111b; }
+QCheckBox::indicator:checked { background: #89b4fa; border: 1px solid #89b4fa; }
 QPushButton#send {
     background-color: #89b4fa;
     color: #11111b;
@@ -332,6 +336,14 @@ class SenderWindow(QMainWindow):
         self.type_btn.setObjectName("send")  # primary (blue) accent
         self.type_btn.setDefault(True)
 
+        self.ide_check = QCheckBox("IDE mode (CodeSignal)")
+        self.ide_check.setToolTip(
+            "Type into a smart auto-indenting editor. Resets each line's "
+            "indentation so it doesn't stack up. Turn off for plain text fields."
+        )
+        self.ide_check.setChecked(bool(cfg.get("ide_mode", False)))
+        self.ide_check.toggled.connect(self.on_ide_toggled)
+
         self.check_btn.clicked.connect(self.on_check)
         self.view_btn.clicked.connect(self.on_view)
         self.clip_btn.clicked.connect(self.on_clipboard_history)
@@ -345,6 +357,7 @@ class SenderWindow(QMainWindow):
         bottom.addWidget(self.clip_btn)
         bottom.addWidget(self.clear_btn)
         bottom.addStretch(1)
+        bottom.addWidget(self.ide_check)
         bottom.addWidget(self.abort_btn)
         bottom.addWidget(self.send_btn)
         bottom.addWidget(self.type_btn)
@@ -410,9 +423,18 @@ class SenderWindow(QMainWindow):
             return
         token = self.token_edit.text()
         set_endpoint(host, port, token)
-        settings.save(host, port, token)
+        settings.save(host, port, token, self.ide_check.isChecked())
         self.target_label.setText(f"Target: {base_url()}")
         self._set_status("endpoint updated", ok=True)
+
+    def on_ide_toggled(self, checked: bool) -> None:
+        settings.save(
+            self.host_edit.text().strip(),
+            int(self.port_edit.text().strip() or 0) or 8765,
+            self.token_edit.text(),
+            checked,
+        )
+        self._set_status(f"IDE mode {'on' if checked else 'off'}", ok=True)
 
     def on_check(self) -> None:
         self._set_status("checking ...", ok=True)
@@ -447,12 +469,14 @@ class SenderWindow(QMainWindow):
         There's a countdown on the receiver so you can focus the target window.
         """
         content = self.editor.toPlainText()
+        ide_mode = self.ide_check.isChecked()
         self._set_status("starting type ...", ok=True)
 
         def task() -> str:
-            info = trigger_type(text=content or None)
+            info = trigger_type(text=content or None, ide_mode=ide_mode)
             delay = info.get("start_delay", 0)
-            return f"typing on receiver (focus target within {delay:g}s)"
+            mode = " [IDE]" if ide_mode else ""
+            return f"typing on receiver (focus target within {delay:g}s){mode}"
 
         self._run(task)
 

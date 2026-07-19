@@ -46,7 +46,10 @@ def send_text(text: str, timeout: float = 5.0) -> dict:
 
 
 def trigger_type(
-    text: str | None = None, start_delay: float | None = None, timeout: float = 5.0
+    text: str | None = None,
+    start_delay: float | None = None,
+    ide_mode: bool | None = None,
+    timeout: float = 5.0,
 ) -> dict:
     """Ask the receiver to start typing. If ``text`` is given, it is stored and
     typed in one call (send + type); otherwise the last sent text is used."""
@@ -55,6 +58,8 @@ def trigger_type(
         body["text"] = text
     if start_delay is not None:
         body["start_delay"] = start_delay
+    if ide_mode is not None:
+        body["ide_mode"] = ide_mode
     resp = requests.post(
         f"{base_url()}/type",
         json=body,

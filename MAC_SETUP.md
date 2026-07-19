@@ -26,11 +26,12 @@ service.
 
 ```bash
 cd ~
-git clone https://github.com/<your-username>/<your-repo>.git keyboard_project
+git clone -b receiver-only https://github.com/screen-warrior/reciever.git keyboard_project
 cd keyboard_project
 ```
 
-(Use the actual URL of the repo you pushed.)
+(This clones the `receiver-only` branch, which contains just the files the Mac
+needs — no Windows sender code.)
 
 ## 2. Create a virtual environment and install receiver deps
 
